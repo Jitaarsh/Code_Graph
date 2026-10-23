@@ -29,11 +29,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    processBtn.addEventListener('click', () => {
-        switchView('view2');
-        renderFileGrid(selectedFiles);
+   const IGNORE = ['node_modules', 'venv', '.git', '__pycache__', '.env'];
+const CODE_EXT = new Set(['.py','.js','.ts','.java','.go','.rs','.cpp','.c','.rb','.php','.jsx','.tsx','.vue','.swift','.kt','.cs']);
+
+processBtn.addEventListener('click', () => {
+    const files = Array.from(selectedFiles);
+    const fd = new FormData();
+    fd.append('project', files[0].webkitRelativePath.split('/')[0]);
+
+    files.forEach(f => {
+        const rel = f.webkitRelativePath;
+        const dirs = rel.split('/').slice(0, -1);
+        const ext = '.' + f.name.split('.').pop().toLowerCase();
+        if (dirs.some(d => IGNORE.includes(d)) || !CODE_EXT.has(ext)) return;
+        fd.append('files', f, f.name);
+        fd.append('paths', rel);
     });
 
+    fetch('/go_through_all', { method: 'POST', body: fd })  // no Content-Type header
+        .then(res => res.json())
+        .then(data => {
+            console.log(data);
+            switchView('view2');
+            renderFileGrid(selectedFiles);
+        })
+        .catch(err => console.error(err));
+});
     changeFolderBtn.addEventListener('click', () => { switchView('view1'); });
 
     searchInput.addEventListener('input', (e) => {
@@ -111,6 +132,14 @@ function handleFileSelect() {
                     <span class="status-indicator"><span class="status-dot"></span> Indexed</span>
                 </div>
             `;
+                        card.style.cursor = 'pointer';
+            card.addEventListener('click', () => {
+                const parts = (file.webkitRelativePath || file.name).split('/');
+                const project = parts[0];
+                const filePath = parts.slice(1).join('/');
+                window.open('/graph?project=' + encodeURIComponent(project) +
+                            '&file=' + encodeURIComponent(filePath), '_blank');
+            });
             fileGrid.appendChild(card);
         });
     }

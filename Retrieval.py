@@ -64,6 +64,8 @@ Rules:
     result = response.json()
     return result['choices'][0]['message']['content']
 
+
+
 def store_code_Neo4j(data, project='default'):
     with driver.session() as session:
         # create project node first
@@ -106,30 +108,15 @@ def store_code_Neo4j(data, project='default'):
             """, file=filename, local=local_file, project=project)
             
 def store_files_only_Neo4j(data, project='default'):
+    filename = data.get('file', 'unknown').replace('\\', '/').lstrip('./')
     with driver.session() as session:
-        # create project node first
-        session.run("MERGE (p:Project {name: $project})", project=project)
-        
-        filename = data.get('file', 'unknown')
-        session.run("MERGE (f:File {name: $name, project: $project})", name=filename, project=project)
-        
-        # connect file to project
-        session.run("""
-            MATCH (p:Project {name: $project})
-            MATCH (f:File {name: $file, project: $project})
-            MERGE (p)-[:CONTAINS]->(f)
-        """, project=project, file=filename)
+        session.run("MERGE (f:File {name: $name, project: $project})",
+                    name=filename, project=project)
 
         for local_file in data.get('local_imports', []):
-            normalized = local_file.replace('\\', '/').lstrip('./')
-            session.run("MERGE (f2:File {name: $name, project: $project})", name=normalized, project=project)
+            target = local_file.replace('\\', '/').lstrip('./')
             session.run("""
-                MATCH (p:Project {name: $project})
-                MATCH (f2:File {name: $name, project: $project})
-                MERGE (p)-[:CONTAINS]->(f2)
-            """, project=project, name=normalized)
-            session.run("""
-                MATCH (f:File {name: $file, project: $project})
-                MATCH (f2:File {name: $local, project: $project})
-                MERGE (f)-[:IMPORTS_LOCAL]->(f2)
-            """, file=filename, local=normalized, project=project)
+                MERGE (a:File {name: $file, project: $project})
+                MERGE (b:File {name: $target, project: $project})
+                MERGE (a)-[:IMPORTS_LOCAL]->(b)
+            """, file=filename, target=target, project=project)

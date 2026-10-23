@@ -1,5 +1,5 @@
-import nltk
-from nltk import sent_tokenize
+
+
 from neo4j import GraphDatabase
 import os
 from dotenv import load_dotenv
@@ -7,7 +7,6 @@ load_dotenv()
 import json
 from Retrieval import get_stored_data, llmresponce, store_code_Neo4j, store_files_only_Neo4j
 
-nltk.download('punkt_tab')
 http_api = os.getenv("llm_endpoint")
 
 uri = os.getenv('NEO4J_URI')
@@ -99,6 +98,22 @@ If you are not 100% sure a file is local (not a library), do NOT include it."""
 
 driver = GraphDatabase.driver(uri, auth=(username, password))
 
+import posixpath
+
+def store_files_only_Neo4j_change(data, project='default'):
+    filename = posixpath.normpath(data.get('file', 'unknown').replace('\\', '/'))
+    base = posixpath.dirname(filename)
+    with driver.session() as session:
+        session.run("MERGE (f:File {name: $name, project: $project})",
+                    name=filename, project=project)
+        for local_file in data.get('local_imports', []):
+            target = posixpath.normpath(posixpath.join(base, local_file.replace('\\', '/')))
+            session.run("""
+                MERGE (a:File {name: $file, project: $project})
+                MERGE (b:File {name: $target, project: $project})
+                MERGE (a)-[:IMPORTS_LOCAL]->(b)
+            """, file=filename, target=target, project=project)
+
 def PROCESS_FILES_only(filepath, visited=set(), project='default'):
     file_path = os.path.abspath(filepath)
     if file_path in visited:
@@ -110,7 +125,7 @@ def PROCESS_FILES_only(filepath, visited=set(), project='default'):
 
     with open(file_path, 'r', encoding='utf-8') as f:
         code = f.read()
-    rel_path = os.path.relpath(file_path).replace('\\', '/')
+    rel_path = rel_path.split('/', 1)[1] if '/' in rel_path else rel_path
     result = Extract_only_file(code, language, rel_path)
     if result:
         store_files_only_Neo4j(result, project=project)
@@ -120,6 +135,20 @@ def PROCESS_FILES_only(filepath, visited=set(), project='default'):
                 PROCESS_FILES_only(local_path, visited, project=project)
             else:
                 print(f"File not found: {local_path}")
+
+def PROCESS_FILES_only_mini(filepath, project='default'):
+    file_path = os.path.abspath(filepath)
+    ext = os.path.splitext(file_path)[1]
+    language = lang_map.get(ext, 'Unknown')
+    print(f"Processing: {file_path} ({language})")
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        code = f.read()
+    
+    rel_path = os.path.relpath(file_path).replace('\\', '/')
+    result = Extract_only_file(code, language, rel_path)
+    if result:
+        store_files_only_Neo4j(result, project=project)
 
 def PROCESS_FILES(filepath, visited=set(), project='default'):
     file_path = os.path.abspath(filepath)
@@ -158,46 +187,49 @@ def store_Neo4j(data):
             )
 
 def sentance_chumking(text):
+    from nltk import sent_tokenize
     return sent_tokenize(text)
 
 def Peragraph_chunking(text):
     return [p.strip() for p in text.split('\n\n') if p.strip()]
 
-input_text = input("press 0 for data storing, press 1 for storing files only, press 2 for conversation: - ")
 
-if input_text == "0":
-    folder_path = input("enter folder path: ")
-    project_name = os.path.basename(folder_path.rstrip('/\\'))
-    for ext in ['.py', '.js', '.ts', '.java']:
-        for entry_name in ['main', 'index', 'app', 'server']:
-            entry = os.path.join(folder_path, f'{entry_name}{ext}')
-            if os.path.exists(entry):
-                PROCESS_FILES(entry, project=project_name)
-                break
+if __name__ == '__main__':
+    input_text = input("press 0 for data storing, press 1 for storing files only, press 2 for conversation: - ")
+
+    if input_text == "0":
+        folder_path = input("enter folder path: ")
+        project_name = os.path.basename(folder_path.rstrip('/\\'))
+        for ext in ['.py', '.js', '.ts', '.java']:
+            for entry_name in ['main', 'index', 'app', 'server']:
+                entry = os.path.join(folder_path, f'{entry_name}{ext}')
+                if os.path.exists(entry):
+                    PROCESS_FILES(entry, project=project_name)
+                    break
+            else:
+                continue
+            break
         else:
-            continue
-        break
-    else:
-        print(f"No entry point found in {folder_path}")
-    driver.close()
+            print(f"No entry point found in {folder_path}")
+        driver.close()
 
-elif input_text == "1":
-    folder_path = input("enter folder path: ")
-    project_name = os.path.basename(folder_path.rstrip('/\\'))
-    for ext in ['.py', '.js', '.ts', '.java']:
-        for entry_name in ['main', 'index', 'app', 'server']:
-            entry = os.path.join(folder_path, f'{entry_name}{ext}')
-            if os.path.exists(entry):
-                PROCESS_FILES_only(entry, project=project_name)
-                break
+    elif input_text == "1":
+        folder_path = input("enter folder path: ")
+        project_name = os.path.basename(folder_path.rstrip('/\\'))
+        for ext in ['.py', '.js', '.ts', '.java']:
+            for entry_name in ['main', 'index', 'app', 'server']:
+                entry = os.path.join(folder_path, f'{entry_name}{ext}')
+                if os.path.exists(entry):
+                    PROCESS_FILES_only(entry, project=project_name)
+                    break
+            else:
+                continue
+            break
         else:
-            continue
-        break
-    else:
-        print(f"No entry point found in {folder_path}")
-    driver.close()
+            print(f"No entry point found in {folder_path}")
+        driver.close()
 
-elif input_text == "2":
-    user_prompt = input("lets start the conversation : - ")
-    context = get_stored_data(user_prompt)
-    print(llmresponce(context, user_prompt))
+    elif input_text == "2":
+        user_prompt = input("lets start the conversation : - ")
+        context = get_stored_data(user_prompt)
+        print(llmresponce(context, user_prompt))

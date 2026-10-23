@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Graph</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        html, body, #graph { height: 100%; margin: 0; }
+    </style>
+</head>
+<body>
+    <div id="graph"></div>
+        <script>
+        const params = new URLSearchParams(location.search);
+        fetch('/graph_data?project=' + encodeURIComponent(params.get('project')) +
+              '&file=' + encodeURIComponent(params.get('file')))
+            .then(r => r.json())
+            .then(g => {
+                new vis.Network(
+                    document.getElementById('graph'),
+                    { nodes: new vis.DataSet(g.nodes), edges: new vis.DataSet(g.edges) },
+                    { edges: { arrows: 'to' }, nodes: { shape: 'dot', size: 14 } }
+                );
+            });
+    </script>
+</body>
+</html>
