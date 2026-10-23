@@ -72,14 +72,15 @@ def Extract_only_file(code, language, filename):
                 {
                     "role": "system",
                     "content": f"""Analyze this {language} code file named {filename}.
-Extract ONLY local file imports (other code files in the project, NOT external libraries).
-Return the local imports as relative paths exactly as they appear in the import statements.
+Extract ONLY local file imports (other code files in the project, NOT external libraries, NOT built-in modules).
+Return the local imports with their FULL filename including extension (.py, .js, etc).
 Return ONLY valid JSON:
 {{
   "file": "{filename}",
   "language": "{language}",
-  "local_imports": ["./config/db.js", "./routes/authRoutes.js"]
-}}"""
+  "local_imports": ["./config/db.py", "./routes/auth.py"]
+}}
+If you are not 100% sure a file is local (not a library), do NOT include it."""
                 },
                 {"role": "user", "content": code}
             ]
@@ -162,16 +163,41 @@ def sentance_chumking(text):
 def Peragraph_chunking(text):
     return [p.strip() for p in text.split('\n\n') if p.strip()]
 
-input_text = input("press 0 for data storing, press 1 for conversation, 2 for storing files only: - ")
+input_text = input("press 0 for data storing, press 1 for storing files only, press 2 for conversation: - ")
+
 if input_text == "0":
-    project_name = input("enter project name: ")
-    PROCESS_FILES('main.py', project=project_name)
+    folder_path = input("enter folder path: ")
+    project_name = os.path.basename(folder_path.rstrip('/\\'))
+    for ext in ['.py', '.js', '.ts', '.java']:
+        for entry_name in ['main', 'index', 'app', 'server']:
+            entry = os.path.join(folder_path, f'{entry_name}{ext}')
+            if os.path.exists(entry):
+                PROCESS_FILES(entry, project=project_name)
+                break
+        else:
+            continue
+        break
+    else:
+        print(f"No entry point found in {folder_path}")
     driver.close()
+
+elif input_text == "1":
+    folder_path = input("enter folder path: ")
+    project_name = os.path.basename(folder_path.rstrip('/\\'))
+    for ext in ['.py', '.js', '.ts', '.java']:
+        for entry_name in ['main', 'index', 'app', 'server']:
+            entry = os.path.join(folder_path, f'{entry_name}{ext}')
+            if os.path.exists(entry):
+                PROCESS_FILES_only(entry, project=project_name)
+                break
+        else:
+            continue
+        break
+    else:
+        print(f"No entry point found in {folder_path}")
+    driver.close()
+
 elif input_text == "2":
     user_prompt = input("lets start the conversation : - ")
     context = get_stored_data(user_prompt)
     print(llmresponce(context, user_prompt))
-elif input_text == "1":
-    project_name = input("enter project name: ")
-    PROCESS_FILES_only('server.js', project=project_name)
-    driver.close()

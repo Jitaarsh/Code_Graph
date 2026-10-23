@@ -24,12 +24,10 @@ def get_stored_data(user_prompt):
         for keyword in keywords:
             result = session.run(
                 """
-                MATCH (f:File {name: $keyword})-[r]->(n)
-                RETURN f.name AS file, type(r) AS relation, n.name AS connected, f.project AS project
-                UNION
-                MATCH (f:File)-[r]->(n)
-                WHERE toLower(f.name) CONTAINS $keyword
-                RETURN f.name AS file, type(r) AS relation, n.name AS connected, f.project AS project
+                MATCH (p:Project)-[:CONTAINS]->(f:File)-[r]->(n)
+                WHERE toLower(p.name) CONTAINS $keyword
+                   OR toLower(f.name) CONTAINS $keyword
+                RETURN p.name AS project, f.name AS file, type(r) AS relation, n.name AS connected
                 """,
                 keyword=keyword
             )
@@ -68,11 +66,26 @@ Rules:
 
 def store_code_Neo4j(data, project='default'):
     with driver.session() as session:
+        # create project node first
+        session.run("MERGE (p:Project {name: $project})", project=project)
+
         filename = data.get('file', 'unknown')
         session.run("MERGE (f:File {name: $name, project: $project})", name=filename, project=project)
 
+        # connect file to project
+        session.run("""
+            MATCH (p:Project {name: $project})
+            MATCH (f:File {name: $file, project: $project})
+            MERGE (p)-[:CONTAINS]->(f)
+        """, project=project, file=filename)
+
         for inp in data.get('imports', []):
             session.run("MERGE (l:Library {name: $name, project: $project})", name=inp['library'], project=project)
+            session.run("""
+                MATCH (p:Project {name: $project})
+                MATCH (l:Library {name: $lib, project: $project})
+                MERGE (p)-[:CONTAINS]->(l)
+            """, project=project, lib=inp['library'])
             session.run("""
                 MATCH (f:File {name: $file, project: $project})
                 MATCH (l:Library {name: $lib, project: $project})
@@ -82,19 +95,39 @@ def store_code_Neo4j(data, project='default'):
         for local_file in data.get('local_imports', []):
             session.run("MERGE (f2:File {name: $name, project: $project})", name=local_file, project=project)
             session.run("""
+                MATCH (p:Project {name: $project})
+                MATCH (f2:File {name: $local, project: $project})
+                MERGE (p)-[:CONTAINS]->(f2)
+            """, project=project, local=local_file)
+            session.run("""
                 MATCH (f:File {name: $file, project: $project})
                 MATCH (f2:File {name: $local, project: $project})
                 MERGE (f)-[:IMPORTS_LOCAL]->(f2)
             """, file=filename, local=local_file, project=project)
-
+            
 def store_files_only_Neo4j(data, project='default'):
     with driver.session() as session:
+        # create project node first
+        session.run("MERGE (p:Project {name: $project})", project=project)
+        
         filename = data.get('file', 'unknown')
         session.run("MERGE (f:File {name: $name, project: $project})", name=filename, project=project)
+        
+        # connect file to project
+        session.run("""
+            MATCH (p:Project {name: $project})
+            MATCH (f:File {name: $file, project: $project})
+            MERGE (p)-[:CONTAINS]->(f)
+        """, project=project, file=filename)
 
         for local_file in data.get('local_imports', []):
             normalized = local_file.replace('\\', '/').lstrip('./')
             session.run("MERGE (f2:File {name: $name, project: $project})", name=normalized, project=project)
+            session.run("""
+                MATCH (p:Project {name: $project})
+                MATCH (f2:File {name: $name, project: $project})
+                MERGE (p)-[:CONTAINS]->(f2)
+            """, project=project, name=normalized)
             session.run("""
                 MATCH (f:File {name: $file, project: $project})
                 MATCH (f2:File {name: $local, project: $project})

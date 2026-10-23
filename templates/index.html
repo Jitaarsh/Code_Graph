@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directory File Processor & Visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="brand">
+            <div class="brand-icon">
+                <i class="fa-solid fa-folder-tree"></i>
+            </div>
+            <span>Directory Processor</span>
+        </div>
+        <div>
+            <span style="font-size: 0.85rem; color: var(--slate-400); font-weight: 500;">Flask Ready v1.0</span>
+        </div>
+    </nav>
+
+    <div class="view-container">
+        <section id="view1" class="page-view active">
+            <div class="hero-header">
+                <h1 class="hero-title">Select a Directory to Begin Processing</h1>
+                <p class="hero-subtitle">Choose a local folder to scan, analyze, and map files into individual interactive cards seamlessly inside your browser.</p>
+            </div>
+
+            <div class="dropzone-card" id="dropzone">
+                <div class="dropzone-icon">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <div class="dropzone-text">Click to Browse or Drag & Drop Folder</div>
+                <div class="dropzone-subtext">Supports directories containing documents, code, images, and media</div>
+                <input type="file" id="folderInput" webkitdirectory directory multiple>
+                <button class="btn btn-primary" onclick="document.getElementById('folderInput').click()">
+                    <i class="fa-solid fa-magnifying-glass"></i> Browse Folder
+                </button>
+            </div>
+
+            <div id="metadataContainer" style="display: none; max-width: 680px; margin: 1.5rem auto 0 auto;">
+                <div class="metadata-box">
+                    <div class="metadata-info">
+                        <div class="folder-badge">
+                            <i class="fa-solid fa-folder"></i>
+                        </div>
+                        <div>
+                            <div class="folder-title" id="previewFolderName">Directory Name</div>
+                            <div class="folder-details" id="previewFolderStats">0 files • ~0 MB</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="processBtn">
+                        Process Folder & Visualizer <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="view2" class="page-view">
+            <div class="view-header">
+                <div class="header-meta">
+                    <h2 id="activeFolderName" style="font-size: 1.25rem; font-weight: 700;">Folder Visualizer</h2>
+                    <span class="stats-badge" id="totalFilesBadge">0 Files</span>
+                </div>
+                <div class="search-filter-box">
+                    <div class="search-input-wrapper">
+                        <i class="fa-solid fa-search"></i>
+                        <input type="text" id="searchInput" class="search-input" placeholder="Search by name or extension...">
+                    </div>
+                </div>
+                <button class="btn btn-secondary" id="changeFolderBtn">
+                    <i class="fa-solid fa-arrow-left"></i> Select New Folder
+                </button>
+            </div>
+            <div class="file-grid" id="fileGrid"></div>
+        </section>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
