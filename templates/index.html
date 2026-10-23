@@ -3,79 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Directory File Processor & Visualizer</title>
+    <meta name="description" content="CodeGraph — Visualize your codebase dependency graph. Upload a folder and explore file relationships interactively.">
+    <title>CodeGraph — File Dependency Visualizer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <nav class="navbar">
+
+    <!-- ── Navbar ─────────────────────────────────────────────────── -->
+    <nav class="navbar" id="navbar">
         <div class="brand">
-            <div class="brand-icon">
-                <i class="fa-solid fa-folder-tree"></i>
+            <div class="brand-logo">
+                <i class="fa-solid fa-diagram-project"></i>
             </div>
-            <span>Directory Processor</span>
+            <div class="brand-text">
+                <span class="brand-name">CodeGraph</span>
+                <span class="brand-tag">Dependency Visualizer</span>
+            </div>
         </div>
-        <div>
-            <span style="font-size: 0.85rem; color: var(--slate-400); font-weight: 500;">Flask Ready v1.0</span>
+        <div class="nav-right">
+            <div class="nav-pill">
+                <span class="nav-dot"></span>
+                <span>Graph Ready</span>
+            </div>
         </div>
     </nav>
 
+    <!-- ── View Container ─────────────────────────────────────────── -->
     <div class="view-container">
+
+        <!-- View 1: Upload / Home -->
         <section id="view1" class="page-view active">
-            <div class="hero-header">
-                <h1 class="hero-title">Select a Directory to Begin Processing</h1>
-                <p class="hero-subtitle">Choose a local folder to scan, analyze, and map files into individual interactive cards seamlessly inside your browser.</p>
-            </div>
 
-            <div class="dropzone-card" id="dropzone">
-                <div class="dropzone-icon">
-                    <i class="fa-solid fa-folder-open"></i>
+            <!-- Hero -->
+            <div class="hero-section">
+                <div class="hero-badge">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>AI-Powered Analysis</span>
                 </div>
-                <div class="dropzone-text">Click to Browse or Drag & Drop Folder</div>
-                <div class="dropzone-subtext">Supports directories containing documents, code, images, and media</div>
-                <input type="file" id="folderInput" webkitdirectory directory multiple>
-                <button class="btn btn-primary" onclick="document.getElementById('folderInput').click()">
-                    <i class="fa-solid fa-magnifying-glass"></i> Browse Folder
-                </button>
+                <h1 class="hero-title">
+                    Visualize Your<br>
+                    <span class="gradient-text">Code Dependencies</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Drop any project folder and instantly generate an interactive dependency graph —
+                    see exactly which files import which, powered by graph intelligence.
+                </p>
+                <div class="hero-stats">
+                    <div class="stat-pill"><i class="fa-brands fa-python"></i> Python</div>
+                    <div class="stat-pill"><i class="fa-brands fa-js"></i> JavaScript</div>
+                    <div class="stat-pill"><i class="fa-brands fa-java"></i> Java</div>
+                    <div class="stat-pill"><i class="fa-solid fa-code"></i> +12 more</div>
+                </div>
             </div>
 
-            <div id="metadataContainer" style="display: none; max-width: 680px; margin: 1.5rem auto 0 auto;">
-                <div class="metadata-box">
-                    <div class="metadata-info">
-                        <div class="folder-badge">
-                            <i class="fa-solid fa-folder"></i>
+            <!-- Drop Zone -->
+            <div class="dropzone-wrapper">
+                <div class="dropzone-card" id="dropzone">
+                    <div class="dropzone-glow"></div>
+                    <div class="dropzone-inner">
+                        <div class="dropzone-icon-ring">
+                            <div class="dropzone-icon">
+                                <i class="fa-solid fa-folder-open"></i>
+                            </div>
                         </div>
-                        <div>
-                            <div class="folder-title" id="previewFolderName">Directory Name</div>
-                            <div class="folder-details" id="previewFolderStats">0 files • ~0 MB</div>
-                        </div>
+                        <div class="dropzone-text">Drop your project folder here</div>
+                        <div class="dropzone-subtext">or click to browse from your computer</div>
+                        <input type="file" id="folderInput" webkitdirectory directory multiple>
+                        <button class="btn btn-primary" id="browseBtn" onclick="document.getElementById('folderInput').click()">
+                            <i class="fa-solid fa-folder-open"></i>
+                            Browse Folder
+                        </button>
                     </div>
-                    <button class="btn btn-primary" id="processBtn">
-                        Process Folder & Visualizer <i class="fa-solid fa-arrow-right"></i>
-                    </button>
+                </div>
+
+                <!-- Metadata card (shown after selection) -->
+                <div id="metadataContainer" class="metadata-container" style="display:none">
+                    <div class="metadata-card">
+                        <div class="metadata-left">
+                            <div class="folder-icon-badge">
+                                <i class="fa-solid fa-folder"></i>
+                            </div>
+                            <div class="metadata-info">
+                                <div class="metadata-name" id="previewFolderName">Project</div>
+                                <div class="metadata-stats" id="previewFolderStats">0 files detected</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-cta" id="processBtn">
+                            <span class="btn-label">Analyze & Map</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature pills -->
+            <div class="feature-row">
+                <div class="feature-chip">
+                    <i class="fa-solid fa-brain"></i>
+                    <span>LLM-analyzed imports</span>
+                </div>
+                <div class="feature-chip">
+                    <i class="fa-solid fa-share-nodes"></i>
+                    <span>Interactive graph view</span>
+                </div>
+                <div class="feature-chip">
+                    <i class="fa-solid fa-database"></i>
+                    <span>Neo4j backed storage</span>
                 </div>
             </div>
         </section>
 
-        <section id="view2" class="page-view">
+        <!-- View 2: File Grid -->
+        <section id="view2" class="page-view" style="display:none">
             <div class="view-header">
-                <div class="header-meta">
-                    <h2 id="activeFolderName" style="font-size: 1.25rem; font-weight: 700;">Folder Visualizer</h2>
-                    <span class="stats-badge" id="totalFilesBadge">0 Files</span>
-                </div>
-                <div class="search-filter-box">
-                    <div class="search-input-wrapper">
-                        <i class="fa-solid fa-search"></i>
-                        <input type="text" id="searchInput" class="search-input" placeholder="Search by name or extension...">
+                <div class="header-left">
+                    <button class="btn btn-ghost" id="changeFolderBtn">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        Back
+                    </button>
+                    <div class="header-title-group">
+                        <h2 class="header-title" id="activeFolderName">Project</h2>
+                        <div class="header-badge" id="totalFilesBadge">0 Files</div>
                     </div>
                 </div>
-                <button class="btn btn-secondary" id="changeFolderBtn">
-                    <i class="fa-solid fa-arrow-left"></i> Select New Folder
-                </button>
+                <div class="header-right">
+                    <div class="search-wrapper">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="searchInput" class="search-input" placeholder="Search files…">
+                    </div>
+                </div>
             </div>
+
+            <!-- Processing Banner -->
+            <div id="processingBanner" class="processing-banner" style="display:none">
+                <div class="spinner"></div>
+                <span>Analyzing files with AI — this may take a moment…</span>
+            </div>
+
+            <!-- Success Banner -->
+            <div id="successBanner" class="success-banner" style="display:none">
+                <i class="fa-solid fa-circle-check"></i>
+                <span id="successText">Analysis complete. Click any file card to view its dependency graph.</span>
+            </div>
+
             <div class="file-grid" id="fileGrid"></div>
         </section>
     </div>

@@ -1,27 +1,323 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>Graph</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CodeGraph — Interactive dependency graph for your source file.">
+    <title>CodeGraph — Dependency Graph</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style>
-        html, body, #graph { height: 100%; margin: 0; }
+        /* ── Design Tokens ─────────────────────────────────────────── */
+        :root {
+            --bg: #f0f4ff;
+            --surface: #ffffff;
+            --surface2: #f8faff;
+            --primary: #4f6ef7;
+            --primary-dark: #3a55d4;
+            --primary-glow: rgba(79, 110, 247, 0.18);
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --text-1: #0f172a;
+            --text-2: #475569;
+            --text-3: #94a3b8;
+            --border: #e2e8f0;
+            --radius: 14px;
+            --radius-sm: 8px;
+            --shadow: 0 4px 24px rgba(79,110,247,0.08);
+            --shadow-lg: 0 8px 40px rgba(79,110,247,0.13);
+            --transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text-1); }
+
+        /* ── Layout ────────────────────────────────────────────────── */
+        .layout { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+        /* ── Topbar ────────────────────────────────────────────────── */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.85rem 1.5rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            z-index: 10;
+            gap: 1rem;
+            flex-shrink: 0;
+        }
+
+        .topbar-brand {
+            display: flex; align-items: center; gap: 0.6rem;
+            font-weight: 800; font-size: 1.1rem; color: var(--primary);
+            text-decoration: none;
+        }
+        .topbar-brand i { font-size: 1.2rem; }
+
+        .topbar-file {
+            display: flex; align-items: center; gap: 0.5rem;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 20px; padding: 0.35rem 1rem;
+            font-size: 0.85rem; font-family: 'Fira Code', monospace;
+            color: var(--text-2); max-width: 480px; overflow: hidden;
+            white-space: nowrap; text-overflow: ellipsis;
+        }
+        .topbar-file i { color: var(--primary); flex-shrink: 0; }
+
+        .topbar-actions { display: flex; align-items: center; gap: 0.75rem; }
+
+        .btn-back {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.5rem 1.1rem; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 20px;
+            font-size: 0.85rem; font-weight: 600; color: var(--text-2);
+            cursor: pointer; transition: var(--transition); text-decoration: none;
+        }
+        .btn-back:hover { background: var(--bg); color: var(--primary); border-color: var(--primary); }
+
+        /* ── Legend ─────────────────────────────────────────────────── */
+        .legend {
+            display: flex; align-items: center; gap: 1.25rem;
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: 0.55rem 1.5rem; font-size: 0.8rem; flex-shrink: 0;
+        }
+        .legend-item { display: flex; align-items: center; gap: 0.4rem; color: var(--text-2); font-weight: 500; }
+        .legend-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+        .dot-root { background: var(--accent-red); box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+        .dot-dep  { background: var(--accent-green); }
+        .dot-rev  { background: var(--accent-blue); }
+        .legend-sep { width: 1px; height: 18px; background: var(--border); }
+
+        /* ── Graph Container ─────────────────────────────────────────── */
+        .graph-wrap { flex: 1; position: relative; overflow: hidden; }
+        #graph { width: 100%; height: 100%; }
+
+        /* ── Loading Overlay ─────────────────────────────────────────── */
+        #loadingOverlay {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: var(--bg); z-index: 5; gap: 1.2rem;
+        }
+        .loading-spinner {
+            width: 52px; height: 52px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .loading-text { font-size: 0.95rem; color: var(--text-2); font-weight: 500; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Error State ─────────────────────────────────────────────── */
+        #errorState {
+            display: none;
+            position: absolute; inset: 0;
+            flex-direction: column; align-items: center; justify-content: center;
+            gap: 1rem;
+        }
+        #errorState i { font-size: 3rem; color: var(--accent-red); opacity: 0.6; }
+        #errorState p { color: var(--text-2); font-size: 1rem; }
+
+        /* ── Info Panel (node hover) ─────────────────────────────────── */
+        #infoPanel {
+            position: absolute; bottom: 1.5rem; left: 1.5rem;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 1rem 1.25rem;
+            box-shadow: var(--shadow-lg); min-width: 220px;
+            font-size: 0.85rem; display: none; z-index: 6;
+            animation: slideUp 0.2s ease;
+        }
+        #infoPanel .info-title { font-weight: 700; color: var(--primary); margin-bottom: 0.3rem; font-family: 'Fira Code', monospace; font-size: 0.8rem; }
+        #infoPanel .info-path { color: var(--text-2); word-break: break-all; }
+        @keyframes slideUp { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+
+        /* ── Empty State ─────────────────────────────────────────────── */
+        #emptyState {
+            display: none; position: absolute; inset: 0;
+            flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+        }
+        #emptyState i { font-size: 3.5rem; color: var(--text-3); }
+        #emptyState h3 { font-size: 1.15rem; color: var(--text-2); }
+        #emptyState p { font-size: 0.9rem; color: var(--text-3); text-align: center; max-width: 300px; }
     </style>
 </head>
 <body>
-    <div id="graph"></div>
-        <script>
-        const params = new URLSearchParams(location.search);
-        fetch('/graph_data?project=' + encodeURIComponent(params.get('project')) +
-              '&file=' + encodeURIComponent(params.get('file')))
-            .then(r => r.json())
-            .then(g => {
-                new vis.Network(
-                    document.getElementById('graph'),
-                    { nodes: new vis.DataSet(g.nodes), edges: new vis.DataSet(g.edges) },
-                    { edges: { arrows: 'to' }, nodes: { shape: 'dot', size: 14 } }
-                );
+<div class="layout">
+
+    <!-- Topbar -->
+    <header class="topbar">
+        <a href="/" class="topbar-brand">
+            <i class="fa-solid fa-diagram-project"></i>
+            CodeGraph
+        </a>
+        <div class="topbar-file" id="topbarFile">
+            <i class="fa-solid fa-file-code"></i>
+            <span id="fileLabel">Loading…</span>
+        </div>
+        <div class="topbar-actions">
+            <a href="/" class="btn-back">
+                <i class="fa-solid fa-arrow-left"></i>
+                All Files
+            </a>
+        </div>
+    </header>
+
+    <!-- Legend -->
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-dot dot-root"></div>
+            <span>Selected file</span>
+        </div>
+        <div class="legend-sep"></div>
+        <div class="legend-item">
+            <div class="legend-dot dot-dep"></div>
+            <span>Depends on</span>
+        </div>
+        <div class="legend-sep"></div>
+        <div class="legend-item">
+            <div class="legend-dot dot-rev"></div>
+            <span>Imported by</span>
+        </div>
+        <div class="legend-sep"></div>
+        <span style="color: var(--text-3); font-size:0.78rem;">Click a node to inspect · Scroll to zoom · Drag to pan</span>
+    </div>
+
+    <!-- Graph Area -->
+    <div class="graph-wrap">
+        <div id="loadingOverlay">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Fetching dependency graph…</div>
+        </div>
+        <div id="errorState">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <p>Failed to load graph data. Please try again.</p>
+        </div>
+        <div id="emptyState">
+            <i class="fa-solid fa-diagram-project"></i>
+            <h3>No dependencies found</h3>
+            <p>This file has no recorded local imports or dependents in the graph.</p>
+        </div>
+        <div id="graph"></div>
+        <div id="infoPanel">
+            <div class="info-title" id="infoPanelTitle">node.py</div>
+            <div class="info-path" id="infoPanelPath">full/path/to/node.py</div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const params = new URLSearchParams(location.search);
+    const project = params.get('project') || '';
+    const file    = params.get('file')    || '';
+
+    // Update topbar
+    document.getElementById('fileLabel').textContent =
+        file || 'Unknown file';
+
+    function showState(id) {
+        ['loadingOverlay', 'errorState', 'emptyState'].forEach(s => {
+            const el = document.getElementById(s);
+            el.style.display = (s === id) ? 'flex' : 'none';
+        });
+    }
+
+    fetch('/graph_data?project=' + encodeURIComponent(project) +
+          '&file=' + encodeURIComponent(file))
+        .then(r => {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
+        .then(g => {
+            if (!g.nodes || g.nodes.length === 0) {
+                showState('emptyState');
+                return;
+            }
+            showState(null);
+
+            const container = document.getElementById('graph');
+            const network = new vis.Network(
+                container,
+                {
+                    nodes: new vis.DataSet(g.nodes),
+                    edges: new vis.DataSet(g.edges),
+                },
+                {
+                    autoResize: true,
+                    layout: { improvedLayout: true },
+                    physics: {
+                        enabled: true,
+                        solver: 'forceAtlas2Based',
+                        forceAtlas2Based: {
+                            gravitationalConstant: -80,
+                            centralGravity: 0.01,
+                            springLength: 120,
+                            springConstant: 0.08,
+                            damping: 0.4,
+                        },
+                        stabilization: { iterations: 200 },
+                    },
+                    nodes: {
+                        shape: 'dot',
+                        size: 16,
+                        font: {
+                            size: 13,
+                            face: 'Inter',
+                            color: '#0f172a',
+                            strokeWidth: 3,
+                            strokeColor: '#ffffff',
+                        },
+                        borderWidth: 2,
+                        borderWidthSelected: 3,
+                        shadow: { enabled: true, size: 8, color: 'rgba(0,0,0,0.12)' },
+                    },
+                    edges: {
+                        arrows: { to: { enabled: true, scaleFactor: 0.7 } },
+                        color: { color: '#94a3b8', highlight: '#4f6ef7', hover: '#4f6ef7' },
+                        width: 1.5,
+                        smooth: { type: 'curvedCW', roundness: 0.2 },
+                        shadow: false,
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 150,
+                        zoomView: true,
+                        dragView: true,
+                    },
+                }
+            );
+
+            // Info panel on node click
+            const panel  = document.getElementById('infoPanel');
+            const pTitle = document.getElementById('infoPanelTitle');
+            const pPath  = document.getElementById('infoPanelPath');
+
+            network.on('click', params => {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    const node = g.nodes.find(n => n.id === nodeId);
+                    if (node) {
+                        pTitle.textContent = node.label;
+                        pPath.textContent  = node.title;
+                        panel.style.display = 'block';
+                    }
+                } else {
+                    panel.style.display = 'none';
+                }
             });
-    </script>
+
+            network.on('stabilizationIterationsDone', () => {
+                network.setOptions({ physics: { enabled: false } });
+            });
+        })
+        .catch(() => showState('errorState'));
+})();
+</script>
 </body>
 </html>
